@@ -23,6 +23,7 @@ type SqlInfo struct {
 	whereLock bool          // 条件锁，判断是否已有where条件
 	onLock    bool          // on语句锁，判断是否已有On语句
 	err       error         // 错误
+	//CacheMap  sync.Map      // 缓存
 }
 
 func Init() *SqlInfo {
@@ -59,6 +60,44 @@ func (info *SqlInfo) Select(in interface{}, tag, tableName string) *SqlInfo {
 				continue
 			}
 			colNameList = append(colNameList, tagVal)
+		}
+	}
+	info.column = colNameList
+	info.Table = tableName
+	info.selected = true
+
+	info.column = RemoveRepeatedElement(info.column) // 去重
+
+	return info
+}
+
+func (info *SqlInfo) Search(in interface{}, tag, tableName string) *SqlInfo {
+	var colNameList = make([]string, 0)
+	v := reflect.ValueOf(in)
+
+	if v.Kind() == reflect.Array && !v.IsZero() {
+		v = reflect.ValueOf(in.([]interface{})[0])
+	}
+
+	// 判断in是否为指针类型， 如果v为指针类型这将v替换为指针对应的值
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	// 获取in的类型
+	t := v.Type()
+
+	for i := 0; i < v.NumField(); i++ {
+		fi := t.Field(i)
+		if tagVal := fi.Tag.Get(tag); tagVal != "" {
+			if tagVal == "-" {
+				continue
+			}
+			colNameList = append(colNameList, tagVal)
+			value := v.Field(i)
+			if value.IsZero() {
+				info.Where(tagVal, value.Interface())
+			}
 		}
 	}
 	info.column = colNameList
@@ -173,6 +212,10 @@ func (info *SqlInfo) Where(query string, args ...interface{}) *SqlInfo {
 	info.args = append(info.args, args...)
 	return info
 }
+
+//func (info *SqlInfo) Preload(query string, args ...interface{})*SqlInfo{
+//
+//}
 
 func (info *SqlInfo) LeftJoin(tableName string) *SqlInfo {
 	if tableName == "" {
