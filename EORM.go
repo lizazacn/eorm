@@ -96,7 +96,7 @@ func (info *SqlInfo) Search(in interface{}, tag, tableName string) *SqlInfo {
 			colNameList = append(colNameList, tagVal)
 			value := v.Field(i)
 			if value.IsZero() {
-				info.Where(tagVal, value.Interface())
+				info.Where(tagVal+"=?", value.Interface())
 			}
 		}
 	}
